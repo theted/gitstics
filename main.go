@@ -147,18 +147,9 @@ func analyzeRepository(repo *git.Repository, stats *RepositoryStats) error {
 		// Get author name
 		authorName := c.Author.Name
 
-		// Get or create author stats
-		authorStats, ok := stats.Authors[authorName]
-		if !ok {
-			authorStats = &AuthorStats{
-				Name: authorName,
-			}
-			stats.Authors[authorName] = authorStats
-		}
-
-		// Increment commit count
-		authorStats.CommitCount++
-		stats.TotalCommits++
+		// Variables to track if this commit should be counted
+		commitAffectsFilteredFiles := false
+		linesChanged := 0
 
 		// Get commit stats
 		if c.NumParents() > 0 {
@@ -170,8 +161,8 @@ func analyzeRepository(repo *git.Repository, stats *RepositoryStats) error {
 					for _, fileStat := range patch.Stats() {
 						// Check if file should be included based on filter and ignore rules
 						if shouldIncludeFile(fileStat.Name, stats.FileFilter, stats.IgnoreFiles) {
-							authorStats.LinesChanged += fileStat.Addition + fileStat.Deletion
-							stats.TotalLines += fileStat.Addition + fileStat.Deletion
+							commitAffectsFilteredFiles = true
+							linesChanged += fileStat.Addition + fileStat.Deletion
 						}
 					}
 				}
@@ -182,16 +173,36 @@ func analyzeRepository(repo *git.Repository, stats *RepositoryStats) error {
 			if err == nil {
 				err = files.ForEach(func(f *object.File) error {
 					if shouldIncludeFile(f.Name, stats.FileFilter, stats.IgnoreFiles) {
+						commitAffectsFilteredFiles = true
 						content, err := f.Contents()
 						if err == nil {
 							lineCount := len(strings.Split(content, "\n"))
-							authorStats.LinesChanged += lineCount
-							stats.TotalLines += lineCount
+							linesChanged += lineCount
 						}
 					}
 					return nil
 				})
 			}
+		}
+
+		// Only count this commit if it affects files matching our filter
+		if commitAffectsFilteredFiles {
+			// Get or create author stats
+			authorStats, ok := stats.Authors[authorName]
+			if !ok {
+				authorStats = &AuthorStats{
+					Name: authorName,
+				}
+				stats.Authors[authorName] = authorStats
+			}
+
+			// Increment commit count
+			authorStats.CommitCount++
+			stats.TotalCommits++
+
+			// Add lines changed
+			authorStats.LinesChanged += linesChanged
+			stats.TotalLines += linesChanged
 		}
 
 		return nil
