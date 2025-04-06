@@ -7,7 +7,7 @@ A command-line tool written in Go that analyzes Git repositories and provides co
 - Displays commit count per author
 - Calculates lines changed per author
 - Shows percentage of total commits and lines changed
-- Supports filtering by file extension
+- Supports filtering by file extension (only counts commits that modify files of the specified extension)
 - Respects `.gitignore` rules
 - Automatically ignores common dependency files (package-lock.json, yarn.lock, etc.)
 
@@ -74,9 +74,11 @@ gitstics -ignore="test.js,mock.js" /path/to/repo .js
 
 Gitstics analyzes the Git commit history to calculate:
 
-1. The number of commits per author
+1. The number of commits per author (only counting commits that modify files matching the filter criteria)
 2. The number of lines changed (additions + deletions) per author
 3. The percentage of total commits and lines changed per author
+
+When a file extension filter is specified (e.g., `.js`), the tool will only count commits that modify files with that extension. This provides accurate statistics for contributions to specific file types.
 
 The tool respects `.gitignore` rules and automatically ignores common dependency files like `package-lock.json`, `yarn.lock`, etc.
 
