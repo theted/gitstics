@@ -43,6 +43,18 @@ gitstics /path/to/repo
 
 # Analyze only specific file types (e.g., JavaScript files)
 gitstics /path/to/repo .js
+# or
+gitstics .js
+# or
+gitstics -ext=.js
+
+# Ignore specific files (comma-separated)
+gitstics -ignore="README.md,LICENSE" /path/to/repo
+
+# Combine file type filtering and ignoring specific files
+gitstics -ignore="test.js,mock.js" -ext=.js /path/to/repo
+# or
+gitstics -ignore="test.js,mock.js" /path/to/repo .js
 ```
 
 ## Example Output

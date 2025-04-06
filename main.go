@@ -30,19 +30,29 @@ type RepositoryStats struct {
 }
 
 func main() {
+	// Define command-line flags
+	ignoreFilesFlag := flag.String("ignore", "", "Comma-separated list of additional files to ignore")
+	fileFilterFlag := flag.String("ext", "", "File extension filter (e.g., .js, .go)")
+	
 	// Parse command-line arguments
 	flag.Parse()
 	args := flag.Args()
 
 	repoPath := "."
-	fileFilter := ""
+	fileFilter := *fileFilterFlag
 
 	if len(args) > 0 {
-		repoPath = args[0]
-	}
-
-	if len(args) > 1 {
-		fileFilter = args[1]
+		// Check if the first argument is a file extension (starts with a dot)
+		if strings.HasPrefix(args[0], ".") {
+			fileFilter = args[0]
+		} else {
+			repoPath = args[0]
+			
+			// Check if there's a second argument for file extension
+			if len(args) > 1 && strings.HasPrefix(args[1], ".") {
+				fileFilter = args[1]
+			}
+		}
 	}
 
 	// Open the repository
@@ -72,6 +82,14 @@ func main() {
 	}
 	for _, file := range commonIgnoreFiles {
 		stats.IgnoreFiles[file] = true
+	}
+	
+	// Add user-specified files to ignore
+	if *ignoreFilesFlag != "" {
+		userIgnoreFiles := strings.Split(*ignoreFilesFlag, ",")
+		for _, file := range userIgnoreFiles {
+			stats.IgnoreFiles[strings.TrimSpace(file)] = true
+		}
 	}
 
 	// Get repository statistics
@@ -144,6 +162,7 @@ func analyzeRepository(repo *git.Repository, stats *RepositoryStats) error {
 
 		// Get commit stats
 		if c.NumParents() > 0 {
+			// For non-initial commits, compare with parent
 			parent, err := c.Parent(0)
 			if err == nil {
 				patch, err := parent.Patch(c)
@@ -156,6 +175,22 @@ func analyzeRepository(repo *git.Repository, stats *RepositoryStats) error {
 						}
 					}
 				}
+			}
+		} else {
+			// For initial commit, count all lines as additions
+			files, err := c.Files()
+			if err == nil {
+				err = files.ForEach(func(f *object.File) error {
+					if shouldIncludeFile(f.Name, stats.FileFilter, stats.IgnoreFiles) {
+						content, err := f.Contents()
+						if err == nil {
+							lineCount := len(strings.Split(content, "\n"))
+							authorStats.LinesChanged += lineCount
+							stats.TotalLines += lineCount
+						}
+					}
+					return nil
+				})
 			}
 		}
 
