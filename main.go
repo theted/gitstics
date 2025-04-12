@@ -93,14 +93,7 @@ func main() {
 	loadGitignore(repoPath, stats)
 
 	// Add common files to ignore
-	commonIgnoreFiles := []string{
-		"package-lock.json",
-		"yarn.lock",
-		"go.sum",
-		"Cargo.lock",
-		"Gemfile.lock",
-	}
-	for _, file := range commonIgnoreFiles {
+	for _, file := range CommonIgnoreFiles {
 		stats.IgnoreFiles[file] = true
 	}
 	
