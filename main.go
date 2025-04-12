@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing/object"
@@ -20,9 +21,26 @@ type AuthorStats struct {
 	LinesChanged int
 }
 
+// WeeklyAuthorStats holds statistics for a single author for a specific week
+type WeeklyAuthorStats struct {
+	Name         string
+	CommitCount  int
+	LinesChanged int
+	Week         time.Time // Start of the week (Sunday)
+}
+
+// WeeklyStats holds statistics for a specific week
+type WeeklyStats struct {
+	Week         time.Time // Start of the week (Sunday)
+	Authors      map[string]*WeeklyAuthorStats
+	TotalCommits int
+	TotalLines   int
+}
+
 // RepositoryStats holds statistics for the entire repository
 type RepositoryStats struct {
-	Authors     map[string]*AuthorStats
+	Authors      map[string]*AuthorStats
+	WeeklyStats  map[string]*WeeklyStats // Key is ISO week string "YYYY-WW"
 	TotalCommits int
 	TotalLines   int
 	FileFilter   string
@@ -33,6 +51,7 @@ func main() {
 	// Define command-line flags
 	ignoreFilesFlag := flag.String("ignore", "", "Comma-separated list of additional files to ignore")
 	fileFilterFlag := flag.String("ext", "", "File extension filter (e.g., .js, .go)")
+	weeklyFlag := flag.Bool("weekly", false, "Show weekly code frequency statistics")
 	
 	// Parse command-line arguments
 	flag.Parse()
@@ -64,8 +83,9 @@ func main() {
 
 	// Initialize repository stats
 	stats := &RepositoryStats{
-		Authors:    make(map[string]*AuthorStats),
-		FileFilter: fileFilter,
+		Authors:     make(map[string]*AuthorStats),
+		WeeklyStats: make(map[string]*WeeklyStats),
+		FileFilter:  fileFilter,
 		IgnoreFiles: make(map[string]bool),
 	}
 
@@ -100,7 +120,11 @@ func main() {
 	}
 
 	// Display statistics
-	displayStats(stats)
+	if *weeklyFlag {
+		displayWeeklyStats(stats)
+	} else {
+		displayStats(stats)
+	}
 }
 
 // loadGitignore loads patterns from .gitignore file
@@ -203,12 +227,68 @@ func analyzeRepository(repo *git.Repository, stats *RepositoryStats) error {
 			// Add lines changed
 			authorStats.LinesChanged += linesChanged
 			stats.TotalLines += linesChanged
+
+			// Get the week start date (Sunday)
+			commitTime := c.Author.When
+			year, week := commitTime.ISOWeek()
+			weekStart := getWeekStart(year, week)
+			weekKey := fmt.Sprintf("%d-W%02d", year, week)
+
+			// Get or create weekly stats
+			weeklyStats, ok := stats.WeeklyStats[weekKey]
+			if !ok {
+				weeklyStats = &WeeklyStats{
+					Week:    weekStart,
+					Authors: make(map[string]*WeeklyAuthorStats),
+				}
+				stats.WeeklyStats[weekKey] = weeklyStats
+			}
+
+			// Get or create weekly author stats
+			weeklyAuthorStats, ok := weeklyStats.Authors[authorName]
+			if !ok {
+				weeklyAuthorStats = &WeeklyAuthorStats{
+					Name: authorName,
+					Week: weekStart,
+				}
+				weeklyStats.Authors[authorName] = weeklyAuthorStats
+			}
+
+			// Update weekly stats
+			weeklyAuthorStats.CommitCount++
+			weeklyAuthorStats.LinesChanged += linesChanged
+			weeklyStats.TotalCommits++
+			weeklyStats.TotalLines += linesChanged
 		}
 
 		return nil
 	})
 
 	return err
+}
+
+// getWeekStart returns the start date (Sunday) of the given ISO week
+func getWeekStart(year, week int) time.Time {
+	// Get the date of the first day of the year
+	jan1 := time.Date(year, 1, 1, 0, 0, 0, 0, time.UTC)
+	
+	// Get the day of the week for January 1st
+	jan1Weekday := int(jan1.Weekday())
+	
+	// Calculate days to add to get to the first day (Monday) of week 1
+	daysToFirstMonday := (8 - jan1Weekday) % 7
+	if jan1Weekday == 0 { // Sunday
+		daysToFirstMonday = 1
+	}
+	
+	// Calculate the date of the first Monday of week 1
+	firstMonday := jan1.AddDate(0, 0, daysToFirstMonday)
+	
+	// Calculate the date of the first day (Sunday) of the requested week
+	// Week 1 starts with the Monday closest to January 1st
+	weekStart := firstMonday.AddDate(0, 0, (week-1)*7-1)
+	
+	return weekStart
 }
 
 // shouldIncludeFile checks if a file should be included in statistics
@@ -274,6 +354,68 @@ func displayStats(stats *RepositoryStats) {
 		"100%",
 		"100%",
 	})
+
+	// Render the table
+	table.Render()
+}
+
+// displayWeeklyStats displays weekly code frequency statistics in an ASCII table
+func displayWeeklyStats(stats *RepositoryStats) {
+	// Create a slice of weeks for sorting
+	weeks := make([]*WeeklyStats, 0, len(stats.WeeklyStats))
+	for _, week := range stats.WeeklyStats {
+		weeks = append(weeks, week)
+	}
+
+	// Sort weeks by date (ascending)
+	sort.Slice(weeks, func(i, j int) bool {
+		return weeks[i].Week.Before(weeks[j].Week)
+	})
+
+	// Create and configure the table
+	table := tablewriter.NewWriter(os.Stdout)
+	table.SetHeader([]string{"Week", "Author", "Lines Changed", "Lines/Week", "Commits"})
+	table.SetBorder(true)
+	table.SetAutoFormatHeaders(false)
+
+	// Add rows for each week and author
+	for _, week := range weeks {
+		// Create a slice of authors for this week
+		authors := make([]*WeeklyAuthorStats, 0, len(week.Authors))
+		for _, author := range week.Authors {
+			authors = append(authors, author)
+		}
+
+		// Sort authors by lines changed (descending)
+		sort.Slice(authors, func(i, j int) bool {
+			return authors[i].LinesChanged > authors[j].LinesChanged
+		})
+
+		// Format the week as YYYY-MM-DD
+		weekStr := week.Week.Format("2006-01-02")
+
+		// Add rows for each author in this week
+		for i, author := range authors {
+			weekDisplay := ""
+			if i == 0 {
+				// Only show the week for the first author in each week
+				weekDisplay = weekStr
+			}
+
+			table.Append([]string{
+				weekDisplay,
+				author.Name,
+				fmt.Sprintf("%d", author.LinesChanged),
+				fmt.Sprintf("%.1f", float64(author.LinesChanged)),
+				fmt.Sprintf("%d", author.CommitCount),
+			})
+		}
+
+		// Add a separator between weeks
+		if len(authors) > 0 {
+			table.Append([]string{"", "", "", "", ""})
+		}
+	}
 
 	// Render the table
 	table.Render()
