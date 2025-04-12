@@ -1,16 +1,16 @@
 # Gitstics
 
-A command-line tool written in Go that analyzes Git repositories and provides contribution statistics per author in an ASCII table.
+A command-line tool written in Go that analyzes Git repositories and provides contribution statistics per author in an ASCII table. Gitstics helps you understand who contributed what to your codebase and when, making it easier to track team productivity and code ownership.
 
 ## Features
 
 - Displays commit count per author
-- Calculates lines changed per author
+- Calculates lines changed per author (additions + deletions)
 - Shows percentage of total commits and lines changed
 - Provides weekly code frequency statistics (lines changed per week per user)
 - Supports filtering by file extension (only counts commits that modify files of the specified extension)
 - Respects `.gitignore` rules
-- Automatically ignores common dependency files (package-lock.json, yarn.lock, etc.)
+- Automatically ignores common dependency files (package-lock.json, yarn.lock, go.sum, etc.)
 
 ## Installation
 
@@ -70,29 +70,43 @@ gitstics -weekly -ext=.js /path/to/repo
 ### Default Output
 
 ```
-+---------+---------+-----------------+-----------------+-----------+
-| Author  | Commits | Lines Changed   | Lines Changed % | Commits % |
-+---------+---------+-----------------+-----------------+-----------+
-| Fredrik | 10      | 1234            | 90.0%           | 90.0%     |
-| Mary    | 5       | 12              | 10.0%           | 10.0%     |
-+---------+---------+-----------------+-----------------+-----------+
-| TOTAL   | 14      | 1246            | 100%            | 100%      |
-+---------+---------+-----------------+-----------------+-----------+
++-----------+---------+-----------------+-----------------+-----------+
+| Author    | Commits | Lines Changed   | Lines Changed % | Commits % |
++-----------+---------+-----------------+-----------------+-----------+
+| Alice     | 4       | 23              | 25.8%           | 26.7%     |
+| Bob       | 3       | 12              | 13.5%           | 20.0%     |
+| Charlie   | 3       | 15              | 16.9%           | 20.0%     |
+| David     | 4       | 20              | 22.5%           | 26.7%     |
+| Stats     | 4       | 19              | 21.3%           | 26.7%     |
++-----------+---------+-----------------+-----------------+-----------+
+| TOTAL     | 15      | 89              | 100%            | 100%      |
++-----------+---------+-----------------+-----------------+-----------+
 ```
 
 ### Weekly Code Frequency Output
 
 ```
-+------------+---------+---------------+------------+---------+
-| Week       | Author  | Lines Changed | Lines/Week | Commits |
-+------------+---------+---------------+------------+---------+
-| 2025-04-01 | Fredrik | 500           | 500.0      | 4       |
-|            | Mary    | 10            | 10.0       | 2       |
-|            |         |               |            |         |
-| 2025-04-08 | Fredrik | 734           | 734.0      | 6       |
-|            | Mary    | 2             | 2.0        | 3       |
-|            |         |               |            |         |
-+------------+---------+---------------+------------+---------+
++------------+-----------+---------------+------------+---------+
+| Week       | Author    | Lines Changed | Lines/Week | Commits |
++------------+-----------+---------------+------------+---------+
+| 2025-03-31 | Alice     | 8             | 8.0        | 2       |
+|            | Bob       | 2             | 2.0        | 1       |
+|            | Charlie   | 1             | 1.0        | 1       |
+|            | David     | 3             | 3.0        | 1       |
+|            | Stats     | 5             | 5.0        | 1       |
+|            |           |               |            |         |
+| 2025-04-07 | Alice     | 4             | 4.0        | 1       |
+|            | Bob       | 5             | 5.0        | 2       |
+|            | Charlie   | 2             | 2.0        | 1       |
+|            | David     | 6             | 6.0        | 1       |
+|            | Stats     | 7             | 7.0        | 1       |
+|            |           |               |            |         |
+| 2025-04-14 | Alice     | 7             | 7.0        | 1       |
+|            | Charlie   | 5             | 5.0        | 1       |
+|            | David     | 11            | 11.0       | 2       |
+|            | Stats     | 7             | 7.0        | 2       |
+|            |           |               |            |         |
++------------+-----------+---------------+------------+---------+
 ```
 
 ## How It Works
@@ -106,9 +120,17 @@ Gitstics analyzes the Git commit history to calculate:
 
 When a file extension filter is specified (e.g., `.js`), the tool will only count commits that modify files with that extension. This provides accurate statistics for contributions to specific file types.
 
-The tool respects `.gitignore` rules and automatically ignores common dependency files like `package-lock.json`, `yarn.lock`, etc.
+The tool respects `.gitignore` rules and automatically ignores common dependency files like `package-lock.json`, `yarn.lock`, `go.sum`, etc.
 
 The weekly code frequency feature groups commits by ISO week and shows how many lines each author changed during that week. This helps visualize development activity over time and identify periods of high productivity or code churn.
+
+### Use Cases
+
+- **Team Performance Analysis**: Track team member contributions over time
+- **Code Ownership**: Identify who has the most knowledge about specific parts of the codebase
+- **Project Handover**: Understand who contributed to which parts of the project before transitioning responsibilities
+- **Language-Specific Analysis**: Focus on contributions to specific file types (e.g., only JavaScript files)
+- **Activity Tracking**: Visualize development activity patterns over time with weekly statistics
 
 ## Limitations
 
